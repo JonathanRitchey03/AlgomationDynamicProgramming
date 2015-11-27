@@ -53,29 +53,33 @@ function makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,table
     return grid
 }
 
-function setGridAtRowColumnToText(grid,i,j,numColumns,text) {
-    highlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
+function setGridAtRowColumnToText(grid,i,j,numColumns,text,highlightColor) {
+    //highlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
     grid.elements[i*numColumns+j].set({
         fill: highlightColor,
         text: text
     });
 }
 
-function unsetGridAtRowColumnToText(grid,i,j,numColumns,text) {
-    grid.elements[i*numColumns+j].set({
-        fill: clearColor,
-        text: text,
+function unhighlightGrid(grid) {
+    grid.set({
+        fill: clearColor
     });
 }
 
-function getGridTextAtRowColumn(grid,i,j) {
-    element = grid.elements[i*columns+j];
-    return element[text];
+function getGridTextAtRowColumn(grid,i,j,numColumns,highlightColor) {
+    //highlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.1})
+    element = grid.elements[i*numColumns+j];
+    element.set({fill:highlightColor})
+    return element["text"];
 }
 
 function* algorithm() {
+    setHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
+    getHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.1})
+    answerHighlightColor = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.5})
     var source = "abcdef";
-    var target = "abdez";
+    var target = "azced";
     var columnNames = prefixesForString(source);
     var rowNames = prefixesForString(target);
     rows = rowNames.length;
@@ -86,43 +90,47 @@ function* algorithm() {
     tableY = 0
     var grid = makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,tableY)
     for(i = 0; i < rows; i++) {
-        text = ""+i+" edits from "+columnNames[0] + " → "+rowNames[i];
-        setGridAtRowColumnToText(grid,i,0,columns,text);
+        text = ""+i+" edits from "+columnNames[0] + " → "+rowNames[i]+".";
+        setGridAtRowColumnToText(grid,i,0,columns,text,setHighlightColor);
         yield({step:text});
-        unsetGridAtRowColumnToText(grid,i,0,columns,""+i);
+        setGridAtRowColumnToText(grid,i,0,columns,""+i);
+        unhighlightGrid(grid);
     }
     for(j = 1; j < columns; j++) {
         text = ""+j+" edits from "+rowNames[0]+" → "+columnNames[j];
-        setGridAtRowColumnToText(grid,0,j,columns,""+j+" edits from "+rowNames[0]+" → "+columnNames[j]);
+        setGridAtRowColumnToText(grid,0,j,columns,text,setHighlightColor);
         yield({step:text})
-        unsetGridAtRowColumnToText(grid,0,j,columns,""+j);
+        setGridAtRowColumnToText(grid,0,j,columns,""+j,setHighlightColor);
+        unhighlightGrid(grid);
     }
     for(i = 1; i < rows; i++) {
         for (j = 1; j < columns; j++) {
-            if ( source[i] === source[j] ) {
-                text = "last char same, so 0 new edits from "+columnNames[j]+" → "+rowNames[j];
-                setGridAtRowColumnToText(grid,i,j,columns,text);
+            if ( source[i] === target[j] ) {
+                actualEdits = getGridTextAtRowColumn(grid,i-1,j-1,columns);
+                text = "last char same, so "+actualEdits+" edits.";
+                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
                 yield({step:text})
-                unsetGridAtRowColumnToText(grid,i,j,columns,""+getGridTextAtRowColumn(grid,i-1,j-1));
+                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
+                unhighlightGrid(grid);
             } else {
-                left = getGridTextAtRowColumn(grid,i,j-1);
-                upperLeft = getGridTextAtRowColumn(grid,i-1,j-1);
-                rowAbove = getGridTextAtRowColumn(grid,i-1,j);
-                text = "min of "+left+","+upperLeft+","+rowAbove+" more edits";
-                setGridAtRowColumnToText(grid,i,j,columns,text);
+                left = getGridTextAtRowColumn(grid,i,j-1,columns,getHighlightColor);
+                upperLeft = getGridTextAtRowColumn(grid,i-1,j-1,columns,getHighlightColor);
+                rowAbove = getGridTextAtRowColumn(grid,i-1,j,columns,getHighlightColor);
+                actualEdits = 1 + Math.min(left,upperLeft,rowAbove);
+                text = "1 + min("+left+","+upperLeft+","+rowAbove+") edits.";
+                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
                 yield({step:text})
-                actualEdits = Math.min(left,upperLeft,rowAbove);
-                unsetGridAtRowColumnToText(grid,i,j,columns,""+actualEdits);
+                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
+                unhighlightGrid(grid);
             }
         }
     }
-    // for(i = 0; i < rowNames.length*columnNames.length; i += 1) {
-    //     grid.elements[i].set({
-    //         text: "new"
-    //     });
-    //     yield({step:"change text"});
-    // }
-    yield({step:"finished"});
+    lastRow = rowNames.length - 1;
+    lastColumn = columnNames.length - 1;
+    text = ""+getGridTextAtRowColumn(grid,lastRow,lastColumn,columns,getHighlightColor)+" edits from "+source+" → "+target;
+    answerHighlight = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.7});
+    setGridAtRowColumnToText(grid,lastRow,lastColumn,columns,text,answerHighlightColor);
+    yield({step:text});
 }
 
 function prefixesForString(str) {
@@ -132,24 +140,3 @@ function prefixesForString(str) {
     }
     return prefixes;
 }
-
-// int count(string s1, string s2)
-// {
-//         int m = s1.length();
-//         int n = s2.length();
-//         for (int i = 0; i <= m; i++) {
-//                 v[i][0] = i;
-//         }
-//         for (int j = 0; j <= n; j++) {
-//                 v[0][j] = j;
-//         }
- 
-//         for (int i = 1; i <= m; i++) {
-//                 for (int j = 1; j <= n; j++) {
-//                         if (s1[i-1] == s2[j-1]) v[i][j] = v[i-1][j-1];
-//                         else v[i][j] = 1 + min(min(v[i][j-1],v[i-1][j]),v[i-1][j-1]);
-//                 }
-//         }
- 
-//         return v[m][n];
-// }
