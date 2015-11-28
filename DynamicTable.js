@@ -1,3 +1,149 @@
+function* algorithm() {
+    setHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
+    getHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.1})
+    answerHighlightColor = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.5})
+    var source = "abcdef";
+    var target = "azced";
+    var columnNames = prefixesForString(source);
+    var rowNames = prefixesForString(target);
+    rows = rowNames.length;
+    columns = columnNames.length;
+    cellWidth = 110;
+    cellHeight = 50;
+    tableX = 10;
+    tableY = 0;
+    codeX = 100;
+    codeTableWidth = 400;
+    evalCodeX = codeX + codeTableWidth
+    evalTableWidth = 100
+    codeY = (rows + 1) * cellHeight + tableY;
+    codeLines = [   "1  // setup obvious minEdits", //0
+                    "2  for r in range(0,rows):", //1
+                    "3      T[r][0] = r", //2
+                    "4  for c in range(1,cols):", //3
+                    "5      T[0][c] = c", //4
+                    "6  // use recurrence for remaining cells", //5
+                    "7  for r in range(0,rows):", //6
+                    "8      for c in range(0,columns):", //7
+                    "9          // target, source same last char", //8
+                    "10         if target[r] == source[c]:", //9
+                    "11             T[r][c] = cell[r-1][c-1]", //10
+                    "12         // minEdits = 1 + min(left,upperLeft,rowAbove)", //11
+                    "13         else:",//12
+                    "14             T[r][c] = 1+min(T[r][c-1],T[r-1][c-1],T[r-1][c])",//13
+                    "15 return T[rows-1][cols-1] // answer in bottom-right"//14
+                ]
+    var codeGrid = makeCodeGrid(10,codeTableWidth,codeX,codeY);
+    replaceCodeLinesInGrid(codeGrid,codeLines,0,2);
+    var evalGrid = makeCodeGrid(10,evalTableWidth,evalCodeX,codeY);
+    evalLines = [   "", //0
+                    "(0,"+rows+"):", //1
+                    "T[r][0] = r", //2
+                    "(1,"+columns+"):", //3
+                    "T[0][c] = c", //4
+                    "", //5
+                    "(0,"+rows+"):", //6
+                    "(0,"+columns+"):", //7
+                    "", //8
+                    "target[r] == source[c]:", //9
+                    "T[r][c] = cell[r-1][c-1]", //10
+                    "", //11
+                    "",//12
+                    "T[r][c] = 1+min(T[r][c-1],T[r-1][c-1],T[r-1][c])",//13
+                    "return T["+(rows-1)+"]["+(columns-1)+"]"//14
+                ]
+    replaceCodeLinesInGrid(evalGrid,evalLines,0,2)
+    var grid = makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,tableY)
+    for(i = 0; i < rows; i++) {
+        text = ""+i+" edits from "+columnNames[0] + " → "+rowNames[i]+".";
+        setGridAtRowColumnToText(grid,i,0,columns,text,setHighlightColor);
+        evalLines[2]="T["+i+"][0] = "+i
+        replaceCodeLinesInGrid(evalGrid,evalLines,0,2)
+        yield({step:text});
+        setGridAtRowColumnToText(grid,i,0,columns,""+i);
+        unhighlightGrid(grid);
+    }
+    replaceCodeLinesInGrid(codeGrid,codeLines,3,4);
+    replaceCodeLinesInGrid(evalGrid,evalLines,3,4)
+    for(j = 1; j < columns; j++) {
+        text = ""+j+" edits from "+rowNames[0]+" → "+columnNames[j];
+        setGridAtRowColumnToText(grid,0,j,columns,text,setHighlightColor);
+        evalLines[4]="T[0]["+j+"] = "+j
+        replaceCodeLinesInGrid(evalGrid,evalLines,3,4)
+        yield({step:text})
+        setGridAtRowColumnToText(grid,0,j,columns,""+j,setHighlightColor);
+        unhighlightGrid(grid);
+    }
+    replaceCodeLinesInGrid(codeGrid,codeLines,5,13)
+    replaceCodeLinesInGrid(evalGrid,evalLines,5,13)
+    for(i = 1; i < rows; i++) {
+        for (j = 1; j < columns; j++) {
+            evalLines[10] = ""
+            evalLines[13] = ""
+            if ( target[i] === source[j] ) {
+                evalLines[9] = ""+target[i]+"=="+source[j]
+                actualEdits = getGridTextAtRowColumn(grid,i-1,j-1,columns);
+                evalLines[10] = "T["+i+"]["+j+"]="+actualEdits
+                replaceCodeLinesInGrid(evalGrid,evalLines,5,13)
+                text = "last char same, so "+actualEdits+" edits.";
+                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
+                yield({step:text})
+                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
+                unhighlightGrid(grid);
+            } else {
+                evalLines[9] = ""+target[i]+"!="+source[j]
+                left = getGridTextAtRowColumn(grid,i,j-1,columns,getHighlightColor);
+                upperLeft = getGridTextAtRowColumn(grid,i-1,j-1,columns,getHighlightColor);
+                rowAbove = getGridTextAtRowColumn(grid,i-1,j,columns,getHighlightColor);
+                actualEdits = 1 + Math.min(left,upperLeft,rowAbove);
+                evalLines[13] = "T["+i+"]["+j+"]="+actualEdits
+                replaceCodeLinesInGrid(evalGrid,evalLines,5,13)
+                text = "1 + min("+left+","+upperLeft+","+rowAbove+") edits.";
+                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
+                yield({step:text})
+                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
+                unhighlightGrid(grid);
+            }
+        }
+    }
+    lastRow = rowNames.length - 1;
+    lastColumn = columnNames.length - 1;
+    text = ""+getGridTextAtRowColumn(grid,lastRow,lastColumn,columns,getHighlightColor)+" edits from "+source+" → "+target;
+    answerHighlight = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.7});
+    setGridAtRowColumnToText(grid,lastRow,lastColumn,columns,text,answerHighlightColor);
+    yield({step:text});
+}
+
+function makeCodeGrid(numLines,cellWidth,codeX,codeY) {
+    clearColor = new algo.Color({ red: 0.5, green: 0.5, blue: 1, alpha: 0})
+    var codeGrid = new algo.render.ElementGroup();
+    var cellHeight = 22;
+    for ( i = 0; i < numLines; i++ ) {
+        codeGrid.add(new algo.render.Rectangle({
+            x:codeX,
+            y:codeY + i * cellHeight,
+            w:cellWidth,
+            h:cellHeight,
+            stroke: clearColor,
+            text: "",
+            textAlign:"left",
+            fontSize: 16,
+        }));
+    }
+    return codeGrid;
+}
+
+function replaceCodeLinesInGrid(grid,codeLines,startIndex,endIndex) {
+    grid.set({text:""});
+    for ( ic = startIndex; ic <= endIndex; ic++ ) {
+        gridIndex = ic - startIndex;
+        grid.elements[gridIndex].set({
+            text:codeLines[ic]
+        }
+        );
+    }
+}
+
 function makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,tableY) {
     gridColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 1})
     clearColor = new algo.Color({ red: 0.5, green: 0.5, blue: 1, alpha: 0})
@@ -54,7 +200,6 @@ function makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,table
 }
 
 function setGridAtRowColumnToText(grid,i,j,numColumns,text,highlightColor) {
-    //highlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
     grid.elements[i*numColumns+j].set({
         fill: highlightColor,
         text: text
@@ -68,69 +213,9 @@ function unhighlightGrid(grid) {
 }
 
 function getGridTextAtRowColumn(grid,i,j,numColumns,highlightColor) {
-    //highlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.1})
     element = grid.elements[i*numColumns+j];
     element.set({fill:highlightColor})
     return element["text"];
-}
-
-function* algorithm() {
-    setHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.2})
-    getHighlightColor = new algo.Color({ red: 0x78/255.0, green: 0x92/255.0, blue: 0xB2/255.0, alpha: 0.1})
-    answerHighlightColor = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.5})
-    var source = "abcdef";
-    var target = "azced";
-    var columnNames = prefixesForString(source);
-    var rowNames = prefixesForString(target);
-    rows = rowNames.length;
-    columns = columnNames.length;
-    cellWidth = 110;
-    cellHeight = 50;
-    tableX = 10
-    tableY = 0
-    var grid = makeDynamicTable(rowNames,columnNames,cellWidth,cellHeight,tableX,tableY)
-    for(i = 0; i < rows; i++) {
-        text = ""+i+" edits from "+columnNames[0] + " → "+rowNames[i]+".";
-        setGridAtRowColumnToText(grid,i,0,columns,text,setHighlightColor);
-        yield({step:text});
-        setGridAtRowColumnToText(grid,i,0,columns,""+i);
-        unhighlightGrid(grid);
-    }
-    for(j = 1; j < columns; j++) {
-        text = ""+j+" edits from "+rowNames[0]+" → "+columnNames[j];
-        setGridAtRowColumnToText(grid,0,j,columns,text,setHighlightColor);
-        yield({step:text})
-        setGridAtRowColumnToText(grid,0,j,columns,""+j,setHighlightColor);
-        unhighlightGrid(grid);
-    }
-    for(i = 1; i < rows; i++) {
-        for (j = 1; j < columns; j++) {
-            if ( source[i] === target[j] ) {
-                actualEdits = getGridTextAtRowColumn(grid,i-1,j-1,columns);
-                text = "last char same, so "+actualEdits+" edits.";
-                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
-                yield({step:text})
-                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
-                unhighlightGrid(grid);
-            } else {
-                left = getGridTextAtRowColumn(grid,i,j-1,columns,getHighlightColor);
-                upperLeft = getGridTextAtRowColumn(grid,i-1,j-1,columns,getHighlightColor);
-                rowAbove = getGridTextAtRowColumn(grid,i-1,j,columns,getHighlightColor);
-                actualEdits = 1 + Math.min(left,upperLeft,rowAbove);
-                text = "1 + min("+left+","+upperLeft+","+rowAbove+") edits.";
-                setGridAtRowColumnToText(grid,i,j,columns,text,setHighlightColor);
-                yield({step:text})
-                setGridAtRowColumnToText(grid,i,j,columns,""+actualEdits,setHighlightColor);
-                unhighlightGrid(grid);
-            }
-        }
-    }
-    lastRow = rowNames.length - 1;
-    lastColumn = columnNames.length - 1;
-    text = ""+getGridTextAtRowColumn(grid,lastRow,lastColumn,columns,getHighlightColor)+" edits from "+source+" → "+target;
-    answerHighlight = new algo.Color({ red: 0/255.0, green: 0x76/255.0, blue: 0xFF/255.0, alpha: 0.7});
-    setGridAtRowColumnToText(grid,lastRow,lastColumn,columns,text,answerHighlightColor);
-    yield({step:text});
 }
 
 function prefixesForString(str) {
